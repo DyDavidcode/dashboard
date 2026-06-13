@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgroChiapas Monitor - Admin Completo</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], },
+                    colors: {
+                        brand: { 50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        html, body { height: 100%; margin: 0; box-sizing: border-box; background-color: #f8fafc; }
+        .admin-card { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 0.5rem; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+        #map { height: 500px; border-radius: 0.5rem; position: relative; z-index: 1; } 
+        .map-layer-btn { transition: all 0.2s; background: white; border: 1px solid #e2e8f0; color: #64748b; }
+        .map-layer-btn.active { background-color: #f1f5f9; border-color: #cbd5e1; color: #0f172a; font-weight: 600; }
+        .glowing-dot { animation: pulse-live 2s ease-in-out infinite; }
+        @keyframes pulse-live { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    </style>
+</head>
+<body class="font-sans text-slate-800 antialiased flex h-screen overflow-hidden">
+
+    <aside class="w-64 bg-white border-r border-slate-200 flex flex-col hidden md:flex z-20 shrink-0">
+        <div class="h-16 flex items-center px-6 border-b border-slate-200">
+            <div class="flex items-center gap-2">
+                <div class="bg-brand-100 text-brand-600 p-1.5 rounded-lg"><i data-lucide="leaf" class="w-5 h-5"></i></div>
+                <h1 class="text-lg font-bold text-slate-900 tracking-tight">AgroChiapas</h1>
+            </div>
+        </div>
+        <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+            <button class="tab-btn w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium bg-brand-50 text-brand-700" data-tab="dashboard">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
+            </button>
+            <button class="tab-btn w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900" data-tab="suelo">
+                <i data-lucide="sprout" class="w-4 h-4"></i> Estado del Suelo
+            </button>
+            <button class="tab-btn w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900" data-tab="graficas">
+                <i data-lucide="line-chart" class="w-4 h-4"></i> Análisis Climático
+            </button>
+            <button class="tab-btn w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900" data-tab="planificacion">
+                <i data-lucide="calendar-check" class="w-4 h-4"></i> Planificador de Siembra
+            </button>
+            <button class="tab-btn w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900" data-tab="economia">
+                <i data-lucide="trending-up" class="w-4 h-4"></i> Mercados y Precios
+            </button>
+            <button class="tab-btn w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900" data-tab="mapa">
+                <i data-lucide="map" class="w-4 h-4"></i> Mapa Interactivo
+            </button>
+        </nav>
+        <div class="p-4 border-t border-slate-200">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold text-xs">AD</div>
+                <div class="flex flex-col">
+                    <span class="text-sm font-medium text-slate-900">Administrador</span>
+                    <span class="text-xs text-slate-500">DY Code Studio</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50">
+        
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 shrink-0">
+            <div class="flex items-center gap-4">
+                <h2 class="text-xl font-semibold text-slate-800" id="current-view-title">Dashboard Principal</h2>
+                <span class="bg-brand-50 text-brand-700 text-xs font-medium px-2.5 py-0.5 rounded-full hidden sm:block">En línea</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-xs text-slate-500 hidden lg:block" id="datetime-display">Cargando fecha...</div>
+                <div class="h-6 w-px bg-slate-200 hidden md:block"></div>
+                <div class="relative">
+                    <select id="municipality-select" onchange="changeMunicipality(this.value)" class="appearance-none bg-white border border-slate-300 text-slate-700 text-sm rounded-md focus:ring-brand-500 focus:border-brand-500 block w-full py-1.5 pl-3 pr-8 cursor-pointer max-w-[200px] truncate">
+                        </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500"><i data-lucide="chevron-down" class="w-4 h-4"></i></div>
+                </div>
+                <div class="flex bg-slate-100 p-0.5 rounded-md border border-slate-200">
+                    <button onclick="selectCrop('maiz')" id="btn-maiz" class="px-3 py-1 text-sm font-medium rounded shadow-sm bg-white text-slate-900">Maíz</button>
+                    <button onclick="selectCrop('frijol')" id="btn-frijol" class="px-3 py-1 text-sm font-medium rounded text-slate-500 hover:text-slate-700">Frijol</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-6">
+            
+            <section id="tab-dashboard" class="tab-content">
+                <div class="mb-6 admin-card p-4 flex items-center justify-between border-l-4 border-l-brand-500" id="status-banner">
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-2 rounded-full glowing-dot bg-brand-500" id="status-dot"></div>
+                        <span class="text-sm font-medium text-slate-800" id="estado-general">Evaluando condiciones climatológicas...</span>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="weather-grid"></div>
+
+                <div class="mt-6 mb-6">
+                    <div class="admin-card p-5 flex flex-col">
+                        <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="activity" class="w-5 h-5 text-brand-500"></i>
+                                <h3 class="text-sm font-semibold text-slate-800">Panorama General (Próximas 24 Horas)</h3>
+                            </div>
+                            <span class="text-xs text-slate-500 font-medium bg-slate-100 px-2 py-1 rounded" id="chart-general-mun-label">...</span>
+                        </div>
+                        <div class="relative flex-grow h-64 w-full"><canvas id="chart-dashboard-general"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="mt-6 mb-2">
+                    <h3 class="text-sm font-semibold text-slate-600 uppercase tracking-wider">Mercado Agrícola Hoy</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div class="admin-card p-4 flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-medium text-slate-500">Maíz Blanco (Ton)</div>
+                            <div class="flex items-baseline gap-2 mt-1">
+                                <span class="text-2xl font-bold text-slate-800">$5,450.00</span>
+                                <span class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded flex items-center"><i data-lucide="trending-up" class="w-3 h-3 mr-1"></i> 1.2%</span>
+                            </div>
+                        </div>
+                        <div class="h-12 w-24 relative"><canvas id="mini-chart-maiz"></canvas></div>
+                    </div>
+                    <div class="admin-card p-4 flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-medium text-slate-500">Frijol Negro (Ton)</div>
+                            <div class="flex items-baseline gap-2 mt-1">
+                                <span class="text-2xl font-bold text-slate-800">$17,800.00</span>
+                                <span class="text-xs font-semibold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded flex items-center"><i data-lucide="trending-down" class="w-3 h-3 mr-1"></i> 0.8%</span>
+                            </div>
+                        </div>
+                        <div class="h-12 w-24 relative"><canvas id="mini-chart-frijol"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                    <div class="admin-card p-5 lg:col-span-2 flex flex-col">
+                        <div class="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+                            <i data-lucide="cpu" class="w-5 h-5 text-brand-500"></i>
+                            <h3 class="text-sm font-semibold text-slate-800">Recomendaciones Inteligentes del Día</h3>
+                        </div>
+                        <div class="space-y-4 flex-1" id="recomendaciones-grid"></div>
+                    </div>
+                
+                    <div class="admin-card p-5 flex flex-col">
+                        <div class="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+                            <i data-lucide="calendar-days" class="w-5 h-5 text-brand-500"></i>
+                            <h3 class="text-sm font-semibold text-slate-800">Próximos 3 Días</h3>
+                        </div>
+                        <div class="space-y-4 flex-1 flex flex-col justify-center" id="forecast-grid">
+                            <div class="text-center text-xs text-slate-400">Cargando pronóstico...</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-suelo" class="tab-content hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6" id="soil-grid"></div>
+                <div class="admin-card p-6">
+                    <h3 class="text-sm font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Interpretación Algorítmica - <span id="soil-crop-label" class="text-brand-600">Maíz</span></h3>
+                    <div id="soil-interpretation" class="text-sm text-slate-600 space-y-3"></div>
+                </div>
+            </section>
+
+            <section id="tab-graficas" class="tab-content hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="admin-card p-5 flex flex-col">
+                        <h3 class="text-sm font-semibold text-slate-800 mb-4">Temperatura (°C)</h3>
+                        <div class="relative flex-grow h-64 w-full"><canvas id="chart-temp"></canvas></div>
+                    </div>
+                    <div class="admin-card p-5 flex flex-col">
+                        <h3 class="text-sm font-semibold text-slate-800 mb-4">Humedad Volumétrica (%)</h3>
+                        <div class="relative flex-grow h-64 w-full"><canvas id="chart-hum"></canvas></div>
+                    </div>
+                    <div class="admin-card p-5 lg:col-span-2 flex flex-col">
+                        <h3 class="text-sm font-semibold text-slate-800 mb-4">Precipitación (mm) y UV</h3>
+                        <div class="relative flex-grow h-64 w-full"><canvas id="chart-precip"></canvas></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-planificacion" class="tab-content hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="admin-card p-6 lg:col-span-2">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 class="text-lg font-bold text-slate-800">Ventana Óptima de Siembra</h3>
+                                <p class="text-sm text-slate-500 mt-1">Basado en datos de precipitación histórica para <span class="font-semibold text-brand-600" id="planificador-mun"></span></p>
+                            </div>
+                            <div class="bg-brand-50 p-2 rounded text-brand-600"><i data-lucide="sprout" class="w-6 h-6"></i></div>
+                        </div>
+                        <div id="planificador-ui" class="mt-8"></div>
+                    </div>
+                    <div class="admin-card p-6 bg-slate-50 border-slate-200">
+                        <h3 class="text-sm font-bold text-slate-800 mb-4 border-b border-slate-200 pb-2">Patrones Históricos de la Región</h3>
+                        <ul class="space-y-4 text-sm text-slate-600" id="planificador-historico"></ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-economia" class="tab-content hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="admin-card p-5 lg:col-span-2 flex flex-col">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-sm font-semibold text-slate-800">Tendencia Histórica (6 Meses) - MXN / Ton</h3>
+                            <div class="flex bg-slate-100 p-0.5 rounded-md border border-slate-200">
+                                <button class="px-3 py-1 text-xs font-medium rounded shadow-sm bg-white text-slate-900">Maíz</button>
+                                <button class="px-3 py-1 text-xs font-medium rounded text-slate-500 hover:text-slate-700">Frijol</button>
+                            </div>
+                        </div>
+                        <div class="relative flex-grow h-80 w-full"><canvas id="chart-economia-main"></canvas></div>
+                    </div>
+
+                    <div class="admin-card p-5 flex flex-col">
+                        <h3 class="text-sm font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-3">Precios por Central de Abastos</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm text-slate-600">
+                                <thead class="text-xs text-slate-400 uppercase bg-slate-50">
+                                    <tr>
+                                        <th class="px-3 py-2 rounded-l-md">Mercado</th>
+                                        <th class="px-3 py-2 text-right">Precio</th>
+                                        <th class="px-3 py-2 text-right rounded-r-md">Var</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+                                        <td class="px-3 py-3 font-medium text-slate-800">Tuxtla Gtz (CEDA)</td>
+                                        <td class="px-3 py-3 text-right">$5,450</td>
+                                        <td class="px-3 py-3 text-right text-emerald-600 font-semibold">+1.2%</td>
+                                    </tr>
+                                    <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+                                        <td class="px-3 py-3 font-medium text-slate-800">SCLC (Mercado Sur)</td>
+                                        <td class="px-3 py-3 text-right">$5,600</td>
+                                        <td class="px-3 py-3 text-right text-emerald-600 font-semibold">+0.8%</td>
+                                    </tr>
+                                    <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+                                        <td class="px-3 py-3 font-medium text-slate-800">Tapachula (San Juan)</td>
+                                        <td class="px-3 py-3 text-right">$5,300</td>
+                                        <td class="px-3 py-3 text-right text-rose-500 font-semibold">-0.5%</td>
+                                    </tr>
+                                    <tr class="hover:bg-slate-50 transition">
+                                        <td class="px-3 py-3 font-medium text-slate-800">Comitán (Central)</td>
+                                        <td class="px-3 py-3 text-right">$5,350</td>
+                                        <td class="px-3 py-3 text-right text-slate-400 font-semibold">0.0%</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-auto pt-4">
+                            <div class="bg-brand-50 text-brand-700 p-3 rounded-md text-xs">
+                                💡 <b>Tip Financiero:</b> El precio del maíz suele subir entre agosto y noviembre antes de las grandes cosechas de ciclo P-V.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-mapa" class="tab-content hidden">
+                <div class="admin-card p-5">
+                    <div class="flex gap-2 mb-4 border-b border-slate-100 pb-4 flex-wrap">
+                        <button onclick="setMapLayer('optimo', this)" class="map-layer-btn active px-3 py-1.5 rounded text-xs">Aptitud de Siembra</button>
+                        <button onclick="setMapLayer('riesgo', this)" class="map-layer-btn px-3 py-1.5 rounded text-xs font-bold text-rose-700 bg-rose-50 border-rose-200 hover:bg-rose-100">⚠️ Riesgo Agrícola</button>
+                        <button onclick="setMapLayer('temp', this)" class="map-layer-btn px-3 py-1.5 rounded text-xs">Temperatura</button>
+                        <button onclick="setMapLayer('precip', this)" class="map-layer-btn px-3 py-1.5 rounded text-xs">Precipitación</button>
+                        <span class="ml-auto text-xs text-slate-400 flex items-center" id="map-loading-indicator">Mostrando los 124 municipios</span>
+                    </div>
+                    <div id="map"></div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <script>
+        // ==========================================
+        // 1. CONFIGURACIÓN PREMIUM DEL TOOLTIP (VENTANITAS OSCURAS ESTILO SAAS)
+        // ==========================================
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = '#64748b';
+
+        // Plugin de Línea de Cruce (Crosshair Vertical)
+        const crosshairPlugin = {
+            id: 'crosshair',
+            afterDraw: chart => {
+                if (chart.tooltip?._active?.length) {
+                    let x = chart.tooltip._active[0].element.x;
+                    let yAxis = chart.scales.y;
+                    let ctx = chart.ctx;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(x, yAxis.top);
+                    ctx.lineTo(x, yAxis.bottom);
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = '#cbd5e1'; 
+                    ctx.setLineDash([4, 4]); 
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+        };
+        Chart.register(crosshairPlugin);
+
+        // Objeto de configuración de Tooltip oscuro (Idéntico a tu ejemplo)
+        const sharedTooltipConfig = {
+            enabled: true,
+            backgroundColor: '#1e293b', // Fondo Oscuro
+            titleColor: '#ffffff',      // Título Blanco
+            bodyColor: '#e2e8f0',       // Texto Claro
+            borderColor: '#334155',
+            borderWidth: 1,
+            padding: 10,
+            boxPadding: 4,
+            usePointStyle: true,
+            titleFont: { size: 13, weight: 'bold', family: "'Inter', sans-serif" },
+            bodyFont: { size: 13, family: "'Inter', sans-serif" },
+            cornerRadius: 6,
+            callbacks: {
+                label: function(context) {
+                    let label = context.dataset.label || '';
+                    if (label) { label += ': '; }
+                    if (context.parsed.y !== null) {
+                        let val = context.parsed.y;
+                        if (label.includes('Temp') || label.includes('Ambiente') || label.includes('Temperatura')) { label += val + ' °C'; }
+                        else if (label.includes('Suelo (%)')) { label += val.toFixed(1) + ' %'; }
+                        else if (label.includes('Precipitación') || label.includes('Lluvia')) { label += val + ' mm'; }
+                        else if (label.includes('Precio')) { label += '$' + val.toLocaleString('es-MX') + '.00'; }
+                        else { label += val; }
+                    }
+                    return label;
+                }
+            }
+        };
+
+        // ==========================================
+        // BASE DE DATOS Y LÓGICA DE APLICACIÓN
+        // ==========================================
+        const municipios = [
+            { name: "Acacoyagua", lat: 15.3333, lng: -92.6667 }, { name: "Acala", lat: 16.55, lng: -92.8 }, { name: "Acapetahua", lat: 15.2833, lng: -92.6833 },
+            { name: "Aldama", lat: 16.9167, lng: -92.6833 }, { name: "Altamirano", lat: 16.7333, lng: -92.0333 }, { name: "Amatán", lat: 17.3833, lng: -92.8167 },
+            { name: "Amatenango de la Frontera", lat: 15.4333, lng: -92.1167 }, { name: "Amatenango del Valle", lat: 16.5333, lng: -92.45 },
+            { name: "Angel Albino Corzo", lat: 15.8667, lng: -92.7333 }, { name: "Arriaga", lat: 16.2333, lng: -93.9 }, { name: "Bejucal de Ocampo", lat: 15.45, lng: -92.15 },
+            { name: "Bella Vista", lat: 15.5833, lng: -92.25 }, { name: "Benemérito de las Américas", lat: 16.5167, lng: -90.65 }, { name: "Berriozábal", lat: 16.8, lng: -93.2667 },
+            { name: "Bochil", lat: 16.9833, lng: -92.9 }, { name: "Cacahoatán", lat: 14.9833, lng: -92.1667 }, { name: "Capitán Luis Ángel Vidal", lat: 15.6833, lng: -92.4833 },
+            { name: "Catazajá", lat: 17.7333, lng: -92.0167 }, { name: "Chalchihuitán", lat: 17.0333, lng: -92.6167 }, { name: "Chamula", lat: 16.7833, lng: -92.6833 },
+            { name: "Chanal", lat: 16.65, lng: -92.2667 }, { name: "Chapultenango", lat: 17.3333, lng: -93.0333 }, { name: "Chenalhó", lat: 16.9, lng: -92.5333 },
+            { name: "Chiapa de Corzo", lat: 16.7167, lng: -93.0167 }, { name: "Chiapilla", lat: 16.5667, lng: -92.7167 }, { name: "Chicoasén", lat: 16.9667, lng: -93.1 },
+            { name: "Chicomuselo", lat: 15.7667, lng: -92.2667 }, { name: "Chilón", lat: 17.1, lng: -92.3333 }, { name: "Cintalapa", lat: 16.7, lng: -93.7167 },
+            { name: "Coapilla", lat: 17.1333, lng: -93.1667 }, { name: "Comitán de Domínguez", lat: 16.25, lng: -92.1333 }, { name: "Copainalá", lat: 17.0833, lng: -93.2167 },
+            { name: "El Bosque", lat: 17.0667, lng: -92.7333 }, { name: "El Parral", lat: 16.45, lng: -92.9667 }, { name: "El Porvenir", lat: 15.45, lng: -92.2833 },
+            { name: "Emiliano Zapata", lat: 16.6, lng: -92.9333 }, { name: "Escuintla", lat: 15.3167, lng: -92.6667 }, { name: "Francisco León", lat: 17.3333, lng: -93.25 },
+            { name: "Frontera Comalapa", lat: 15.6667, lng: -92.1333 }, { name: "Frontera Hidalgo", lat: 14.7667, lng: -92.1833 }, { name: "Honduras de la Sierra", lat: 15.4, lng: -92.2667 },
+            { name: "Huehuetán", lat: 15.0167, lng: -92.3833 }, { name: "Huitiupán", lat: 17.1833, lng: -92.6833 }, { name: "Huixtla", lat: 15.1333, lng: -92.4667 },
+            { name: "Huixtán", lat: 16.7333, lng: -92.4667 }, { name: "Ixhuatán", lat: 17.3, lng: -93.0167 }, { name: "Ixtacomitán", lat: 17.4333, lng: -93.1 },
+            { name: "Ixtapa", lat: 16.8, lng: -92.9 }, { name: "Ixtapangajoya", lat: 17.4833, lng: -92.9833 }, { name: "Jiquipilas", lat: 16.6667, lng: -93.65 },
+            { name: "Jitotol", lat: 17.0667, lng: -92.8667 }, { name: "Juárez", lat: 17.6, lng: -93.2833 }, { name: "La Concordia", lat: 16.1167, lng: -92.6833 },
+            { name: "La Grandeza", lat: 15.5, lng: -92.2167 }, { name: "La Independencia", lat: 16.25, lng: -91.9833 }, { name: "La Libertad", lat: 17.5833, lng: -91.85 },
+            { name: "La Trinitaria", lat: 16.1167, lng: -92.05 }, { name: "Larráinzar", lat: 16.8833, lng: -92.7167 }, { name: "Las Margaritas", lat: 16.3167, lng: -91.9833 },
+            { name: "Las Rosas", lat: 16.3667, lng: -92.3667 }, { name: "Mapastepec", lat: 15.4333, lng: -92.9 }, { name: "Maravilla Tenejapa", lat: 16.1333, lng: -91.2833 },
+            { name: "Marqués de Comillas", lat: 16.15, lng: -90.65 }, { name: "Mazapa de Madero", lat: 15.3833, lng: -92.1833 }, { name: "Mazatán", lat: 14.8667, lng: -92.45 },
+            { name: "Metapa", lat: 14.8333, lng: -92.1833 }, { name: "Mezcalapa", lat: 17.1833, lng: -93.5333 }, { name: "Mitontic", lat: 16.8667, lng: -92.6333 },
+            { name: "Montecristo de Guerrero", lat: 15.7333, lng: -92.6667 }, { name: "Motozintla", lat: 15.3667, lng: -92.25 }, { name: "Nicolás Ruíz", lat: 16.4333, lng: -92.5833 },
+            { name: "Ocosingo", lat: 16.9, lng: -92.1 }, { name: "Ocotepec", lat: 17.2167, lng: -93.1667 }, { name: "Ocozocoautla de Espinosa", lat: 16.7667, lng: -93.3667 },
+            { name: "Ostuacán", lat: 17.4, lng: -93.3333 }, { name: "Osumacinta", lat: 16.9333, lng: -93.0833 }, { name: "Oxchuc", lat: 16.7833, lng: -92.35 },
+            { name: "Palenque", lat: 17.5, lng: -91.9833 }, { name: "Pantelhó", lat: 17.0, lng: -92.4667 }, { name: "Pantepec", lat: 17.1833, lng: -93.05 },
+            { name: "Pichucalco", lat: 17.5, lng: -93.1167 }, { name: "Pijijiapan", lat: 15.6833, lng: -93.2167 }, { name: "Pueblo Nuevo Solistahuacán", lat: 17.1667, lng: -92.9 },
+            { name: "Rayón", lat: 17.2, lng: -93.0167 }, { name: "Reforma", lat: 17.8667, lng: -93.1667 }, { name: "Rincón Chamula San Pedro", lat: 17.2167, lng: -92.9167 },
+            { name: "Sabanilla", lat: 17.2833, lng: -92.55 }, { name: "Salto de Agua", lat: 17.55, lng: -92.3333 }, { name: "San Andrés Duraznal", lat: 17.1333, lng: -92.8 },
+            { name: "San Cristóbal de las Casas", lat: 16.7333, lng: -92.6333 }, { name: "San Fernando", lat: 16.8667, lng: -93.2 }, { name: "San Juan Cancuc", lat: 16.9, lng: -92.35 },
+            { name: "San Lucas", lat: 16.6, lng: -92.7167 }, { name: "Santiago el Pinar", lat: 16.9333, lng: -92.7167 }, { name: "Siltepec", lat: 15.55, lng: -92.3333 },
+            { name: "Simojovel", lat: 17.1333, lng: -92.7 }, { name: "Sitalá", lat: 17.0333, lng: -92.3 }, { name: "Socoltenango", lat: 16.2333, lng: -92.4167 },
+            { name: "Solosuchiapa", lat: 17.3, lng: -93.0333 }, { name: "Soyaló", lat: 16.9, lng: -92.9333 }, { name: "Suchiapa", lat: 16.6167, lng: -93.0833 },
+            { name: "Suchiate", lat: 14.6167, lng: -92.2167 }, { name: "Sunuapa", lat: 17.4833, lng: -93.25 }, { name: "Tapachula", lat: 14.9, lng: -92.2667 },
+            { name: "Tapalapa", lat: 17.1833, lng: -93.1167 }, { name: "Tapilula", lat: 17.25, lng: -93.0167 }, { name: "Tecpatán", lat: 17.1333, lng: -93.6167 },
+            { name: "Tenejapa", lat: 16.8167, lng: -92.5167 }, { name: "Teopisca", lat: 16.6, lng: -92.4667 }, { name: "Tila", lat: 17.3, lng: -92.5333 },
+            { name: "Tonalá", lat: 16.0833, lng: -93.75 }, { name: "Totolapa", lat: 16.55, lng: -92.6833 }, { name: "Tumbalá", lat: 17.2667, lng: -92.3167 },
+            { name: "Tuxtla Chico", lat: 14.9333, lng: -92.1667 }, { name: "Tuxtla Gutiérrez", lat: 16.75, lng: -93.1167 }, { name: "Tuzantán", lat: 15.15, lng: -92.4333 },
+            { name: "Tzimol", lat: 16.2, lng: -92.2 }, { name: "Unión Juárez", lat: 15.0667, lng: -92.0833 }, { name: "Venustiano Carranza", lat: 16.3333, lng: -92.5667 },
+            { name: "Villa Comaltitlán", lat: 15.2167, lng: -92.5833 }, { name: "Villa Corzo", lat: 16.1833, lng: -93.2667 }, { name: "Villaflores", lat: 16.2333, lng: -93.2667 },
+            { name: "Yajalón", lat: 17.1667, lng: -92.3333 }, { name: "Zinacantán", lat: 16.7667, lng: -92.7167 }
+        ];
+        
+        municipios.sort((a, b) => a.name.localeCompare(b.name));
+        let comitanIndex = municipios.findIndex(m => m.name === "Comitán de Domínguez");
+        if (comitanIndex === -1) comitanIndex = 0; 
+
+        let currentCrop = 'maiz';
+        let currentMun = municipios[comitanIndex];
+        let realTimeData = {}; 
+        let globalMapData = []; 
+        let chartTemp, chartHum, chartPrecip, chartDashboardGeneral; 
+        let chartEconMain, chartEconMaizMini, chartEconFrijolMini; 
+
+        lucide.createIcons();
+
+        const viewTitles = { 
+            'dashboard': 'Dashboard Principal', 
+            'suelo': 'Estado y Análisis del Suelo', 
+            'graficas': 'Métricas Climáticas', 
+            'planificacion': 'Planificador Inteligente de Siembra', 
+            'economia': 'Inteligencia de Mercado', 
+            'mapa': 'Visor Geográfico y de Riesgo' 
+        };
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const targetTab = this.dataset.tab;
+                document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+                document.getElementById('tab-' + targetTab).classList.remove('hidden');
+                document.getElementById('current-view-title').textContent = viewTitles[targetTab];
+                
+                document.querySelectorAll('.tab-btn').forEach(b => { 
+                    b.className = 'tab-btn w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900';
+                });
+                this.className = 'tab-btn w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium bg-brand-50 text-brand-700';
+                
+                if (targetTab === 'mapa') initMap();
+                if (targetTab === 'economia' || targetTab === 'dashboard') renderEconomyCharts();
+                if (targetTab === 'planificacion') renderPlanificador();
+            });
+        });
+
+        // ==========================================
+        // DESCARGA PROTEGIDA PARA NO SATURAR LA API
+        // ==========================================
+        async function fetchMunicipalityData() {
+            try {
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${currentMun.lat}&longitude=${currentMun.lng}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m&hourly=temperature_2m,relative_humidity_2m,precipitation,soil_moisture_0_to_1cm,soil_temperature_0cm,uv_index&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode&timezone=America%2FMexico_City&past_days=1&forecast_days=4`;
+                const res = await fetch(url);
+                const data = await res.json();
+
+                const hIndex = 24; 
+                realTimeData = {
+                    temperatura: { value: data.current.temperature_2m, label: 'Temp. Actual', icon: 'thermometer', color: 'text-emerald-600' },
+                    humedad: { value: data.current.relative_humidity_2m, label: 'Humedad', icon: 'droplets', color: 'text-blue-600' },
+                    precipitacion: { value: data.current.precipitation, label: 'Lluvia hoy', icon: 'cloud-rain', color: 'text-indigo-600' },
+                    viento: { value: data.current.wind_speed_10m, label: 'Viento', icon: 'wind', color: 'text-slate-600' },
+                    uv: { value: data.hourly.uv_index[hIndex] || 0, label: 'Índice UV', icon: 'sun', color: 'text-amber-500' },
+                    temp_suelo: { value: data.hourly.soil_temperature_0cm[hIndex], label: 'Temperatura Suelo Superficial', icon: 'thermometer-sun' },
+                    humedad_suelo: { value: ((data.hourly.soil_moisture_0_to_1cm[hIndex] || 0.3) * 100).toFixed(1), label: 'Humedad Volumétrica del Suelo', icon: 'waves' },
+                    forecast: data.daily
+                };
+
+                renderDashboard();
+                evaluateConditions();
+                updateCharts(data.hourly);
+                renderForecast();
+                renderPlanificador();
+            } catch (error) { console.error("Error obteniendo datos del municipio:", error); }
+        }
+
+        // DESCARGA EN BLOQUES PEQUEÑOS (CHUNKING CON DELAY)
+        async function fetchAllMapData() {
+            try {
+                const chunkSize = 30; // Bloque seguro para Open-Meteo
+                let allData = [];
+                
+                for (let i = 0; i < municipios.length; i += chunkSize) {
+                    const chunk = municipios.slice(i, i + chunkSize);
+                    const lats = chunk.map(m => m.lat).join(',');
+                    const lngs = chunk.map(m => m.lng).join(',');
+                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lngs}&current=temperature_2m,precipitation&timezone=America%2FMexico_City`;
+                    
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error("Límite de API alcanzado o URL muy larga");
+                    
+                    const data = await res.json();
+                    const dataArray = Array.isArray(data) ? data : [data];
+                    
+                    dataArray.forEach((d, index) => {
+                        if(d && d.current) {
+                            allData.push({ mun: chunk[index], temp: d.current.temperature_2m, precip: d.current.precipitation });
+                        }
+                    });
+                    
+                    // Pausa de 400ms para no saturar la API
+                    await new Promise(r => setTimeout(r, 400)); 
+                }
+                
+                globalMapData = allData;
+                document.getElementById('map-loading-indicator').innerHTML = `<i data-lucide="check" class="w-3 h-3 text-emerald-500 mr-1"></i> Mapa cargado (${globalMapData.length}/124)`;
+                lucide.createIcons();
+                
+                if (map) {
+                    const mapActiveBtn = document.querySelector('.map-layer-btn.active');
+                    if(mapActiveBtn) setMapLayer(mapActiveBtn.textContent.includes('Aptitud') ? 'optimo' : (mapActiveBtn.textContent.includes('Riesgo') ? 'riesgo' : 'temp'), mapActiveBtn);
+                    else renderMapMarkers('optimo');
+                }
+            } catch (error) { 
+                console.error("Error en mapa masivo:", error); 
+                document.getElementById('map-loading-indicator').innerHTML = '<i data-lucide="alert-circle" class="w-3 h-3 text-rose-500 mr-1"></i> Modo Offline (Límite de API)';
+                lucide.createIcons();
+            }
+        }
+
+        // ==========================================
+        // RENDERIZADO VISUAL
+        // ==========================================
+        function renderDashboard() {
+            const gridW = document.getElementById('weather-grid');
+            const metrics = ['temperatura', 'humedad', 'precipitacion', 'viento'];
+            gridW.innerHTML = metrics.map(key => {
+                const d = realTimeData[key];
+                return `
+                <div class="admin-card p-5">
+                    <div class="flex items-center gap-2 text-slate-500 text-sm font-medium mb-3">
+                        <i data-lucide="${d.icon}" class="w-4 h-4"></i> ${d.label}
+                    </div>
+                    <div class="text-3xl font-bold ${d.color}">${d.value}</div>
+                    <div class="text-xs text-slate-400 mt-1">${key === 'temperatura' ? '°C' : key === 'humedad' ? '%' : key === 'precipitacion' ? 'mm' : 'km/h'}</div>
+                </div>`;
+            }).join('');
+
+            const gridS = document.getElementById('soil-grid');
+            gridS.innerHTML = ['temp_suelo', 'humedad_suelo'].map(key => {
+                const d = realTimeData[key];
+                return `
+                <div class="admin-card p-5 flex items-center justify-between border-l-2 border-brand-400">
+                    <div>
+                        <div class="text-xs text-slate-500 font-medium mb-1">${d.label}</div>
+                        <div class="text-2xl font-bold text-slate-800">${d.value} <span class="text-sm font-normal text-slate-500">${key === 'temp_suelo' ? '°C' : '%'}</span></div>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-full text-brand-600"><i data-lucide="${d.icon}" class="w-6 h-6"></i></div>
+                </div>`;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function evaluateConditions() {
+            const temp = realTimeData.temperatura.value;
+            const humSuelo = parseFloat(realTimeData.humedad_suelo.value);
+            const precip = realTimeData.precipitacion.value;
+            const precipProbMañana = realTimeData.forecast ? (realTimeData.forecast.precipitation_probability_max[2] || 0) : 0;
+            
+            const banner = document.getElementById('status-banner');
+            const dot = document.getElementById('status-dot');
+            const btnEstado = document.getElementById('estado-general');
+            const interpBox = document.getElementById('soil-interpretation');
+            const recsGrid = document.getElementById('recomendaciones-grid');
+            
+            let isOptimo = true; let msg = []; let recs = [];
+            
+            if (currentCrop === 'maiz') {
+                if(temp >= 15 && temp <= 30) msg.push('<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500"></i> Temperatura ambiental en rango óptimo para maíz.');
+                else { msg.push('<i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500"></i> Temperatura fuera del rango ideal (15-30°C).'); isOptimo = false; }
+                if(humSuelo > 20) msg.push('<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500"></i> Humedad de suelo suficiente.');
+                else { msg.push('<i data-lucide="x-circle" class="w-4 h-4 text-red-500"></i> Suelo seco. Requiere riego.'); isOptimo = false; }
+            } else {
+                if(temp >= 18 && temp <= 27) msg.push('<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500"></i> Temperatura ideal para frijol.');
+                else { msg.push('<i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500"></i> Estrés térmico para frijol.'); isOptimo = false; }
+                if(humSuelo > 15 && humSuelo < 40) msg.push('<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500"></i> Humedad adecuada.');
+                else if(humSuelo >= 40) { msg.push('<i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500"></i> Exceso de humedad, riesgo de asfixia.'); isOptimo = false; }
+                else { msg.push('<i data-lucide="x-circle" class="w-4 h-4 text-red-500"></i> Déficit hídrico.'); isOptimo = false; }
+            }
+
+            if (precip > 15 || precipProbMañana >= 70) {
+                recs.push({ icon: 'alert-triangle', color: 'rose', title: 'Alerta por Exceso de Lluvia', desc: `Se pronostica alta precipitación mañana (${precipProbMañana}%). Posponer fertilización foliar.` });
+            } else if (humSuelo < 15 && temp > 30) {
+                recs.push({ icon: 'sun', color: 'amber', title: 'Estrés Hídrico Inminente', desc: 'Suelo muy seco ('+humSuelo+'%) y calor extremo. Urge aplicar riego de auxilio.' });
+            } else if (humSuelo >= 15 && precipProbMañana >= 40) {
+                recs.push({ icon: 'cloud-rain', color: 'emerald', title: 'Riego Innecesario', desc: `La humedad del suelo es buena y hay un ${precipProbMañana}% de probabilidad de lluvia mañana.` });
+            } else {
+                recs.push({ icon: 'droplets', color: 'emerald', title: 'Riego Normal', desc: `La humedad del suelo (${humSuelo}%) es estable. Mantenga el ciclo de riego habitual.` });
+            }
+
+            if (temp > 25 && humSuelo > 30) {
+                recs.push({ icon: 'bug', color: 'amber', title: 'Prevención de Hongos', desc: 'El clima cálido y húmedo favorece la roya o antracnosis. Realizar monitoreo preventivo.' });
+            } else {
+                recs.push({ icon: 'leaf', color: 'emerald', title: 'Desarrollo Óptimo', desc: 'Las condiciones de temperatura limitan plagas. Buen día para labores de campo.' });
+            }
+
+            if(isOptimo) {
+                banner.className = 'mb-6 admin-card p-4 flex items-center justify-between border-l-4 border-l-emerald-500 bg-emerald-50/30';
+                dot.className = 'w-2 h-2 rounded-full glowing-dot bg-emerald-500';
+                btnEstado.textContent = 'Condiciones óptimas en ' + currentMun.name + ' para el cultivo de ' + currentCrop;
+            } else {
+                banner.className = 'mb-6 admin-card p-4 flex items-center justify-between border-l-4 border-l-amber-500 bg-amber-50/30';
+                dot.className = 'w-2 h-2 rounded-full glowing-dot bg-amber-500';
+                btnEstado.textContent = 'Se requiere atención en ' + currentMun.name + ' para el cultivo de ' + currentCrop;
+            }
+
+            interpBox.innerHTML = msg.map(m => `<div class="flex items-center gap-2">${m}</div>`).join('');
+            recsGrid.innerHTML = recs.map(r => `
+                <div class="flex gap-3 items-start">
+                    <div class="bg-${r.color}-50 text-${r.color}-600 p-2 rounded-lg shrink-0"><i data-lucide="${r.icon}" class="w-4 h-4"></i></div>
+                    <div>
+                        <h4 class="text-sm font-medium text-slate-800">${r.title}</h4>
+                        <p class="text-xs text-slate-500 mt-0.5">${r.desc}</p>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function renderForecast() {
+            const daily = realTimeData.forecast;
+            const container = document.getElementById('forecast-grid');
+            if(!daily || !container) return;
+            
+            let html = '';
+            for (let i = 2; i <= 4; i++) { 
+                if (!daily.time[i]) continue;
+                const dateParts = daily.time[i].split('-'); 
+                const dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+                const dayName = i === 2 ? 'Mañana' : dateObj.toLocaleDateString('es-MX', { weekday: 'short' });
+                
+                const tMax = Math.round(daily.temperature_2m_max[i]);
+                const tMin = Math.round(daily.temperature_2m_min[i]);
+                const prob = daily.precipitation_probability_max[i] || 0;
+                const code = daily.weathercode[i]; 
+                
+                let icon = 'sun'; let color = 'text-amber-500';
+                if (code >= 1 && code <= 3) { icon = 'cloud'; color = 'text-slate-400'; }
+                if (code >= 45 && code <= 48) { icon = 'cloud-fog'; color = 'text-slate-400'; }
+                if (code >= 51 && code <= 67) { icon = 'cloud-rain'; color = 'text-indigo-500'; }
+                if (code >= 80 && code <= 82) { icon = 'cloud-rain'; color = 'text-blue-500'; }
+                if (code >= 95) { icon = 'cloud-lightning'; color = 'text-purple-500'; }
+                
+                html += `
+                <div class="flex items-center justify-between border-b border-slate-50 pb-2 last:border-0 last:pb-0">
+                    <span class="text-sm text-slate-600 font-medium w-16 capitalize">${dayName}</span>
+                    <div class="flex items-center gap-2 ${color}">
+                        <i data-lucide="${icon}" class="w-4 h-4"></i> <span class="text-xs font-medium">${prob}%</span>
+                    </div>
+                    <div class="text-sm font-semibold text-slate-800">${tMax}° <span class="text-slate-400 font-normal">/ ${tMin}°</span></div>
+                </div>`;
+            }
+            container.innerHTML = html;
+            lucide.createIcons();
+        }
+
+        function renderPlanificador() {
+            document.getElementById('planificador-mun').textContent = currentMun.name;
+            const ui = document.getElementById('planificador-ui');
+            const hist = document.getElementById('planificador-historico');
+            const isMaiz = currentCrop === 'maiz';
+            const status = isMaiz ? 'En Ventana Ideal' : 'Próximo a Iniciar';
+            const colorClass = isMaiz ? 'bg-emerald-500' : 'bg-brand-500';
+            const textClass = isMaiz ? 'text-emerald-700' : 'text-brand-700';
+            const bgLight = isMaiz ? 'bg-emerald-50' : 'bg-brand-50';
+
+            ui.innerHTML = `
+                <div class="flex flex-col md:flex-row gap-6 mb-8">
+                    <div class="flex-1 p-4 rounded-lg border border-slate-200 text-center">
+                        <div class="text-xs text-slate-500 font-semibold uppercase mb-1">Inicio de Temporada</div>
+                        <div class="text-xl font-bold text-slate-800">${isMaiz ? '15 de Mayo' : '15 de Julio'}</div>
+                    </div>
+                    <div class="flex-1 p-4 rounded-lg border border-slate-200 text-center">
+                        <div class="text-xs text-slate-500 font-semibold uppercase mb-1">Fin Recomendado</div>
+                        <div class="text-xl font-bold text-slate-800">${isMaiz ? '30 de Junio' : '30 de Agosto'}</div>
+                    </div>
+                </div>
+                
+                <div class="mb-2 flex justify-between items-center text-sm font-bold">
+                    <span class="text-slate-700">Estado Actual:</span>
+                    <span class="px-2.5 py-1 rounded-full ${bgLight} ${textClass}">${status}</span>
+                </div>
+                
+                <div class="relative w-full h-4 bg-slate-100 rounded-full overflow-hidden mt-4 shadow-inner">
+                    <div class="absolute top-0 left-0 h-full ${colorClass} rounded-full" style="width: ${isMaiz ? '65%' : '15%'}"></div>
+                </div>
+                <div class="flex justify-between mt-2 text-xs text-slate-400 font-medium px-1">
+                    <span>Preparación</span><span>Siembra</span><span>Cierre de Ventana</span>
+                </div>
+
+                <div class="mt-8 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <h4 class="text-sm font-semibold text-slate-800 mb-2">💡 Sugerencia Agronómica</h4>
+                    <p class="text-sm text-slate-600">${isMaiz ? 'Aprovecha la humedad residual actual en '+currentMun.name+'. Es el momento preciso para sembrar semillas híbridas de maíz que requieren buen establecimiento.' : 'El suelo en '+currentMun.name+' está acumulando la humedad necesaria. Prepara la tierra para arrancar el próximo mes.'}</p>
+                </div>`;
+
+            hist.innerHTML = `
+                <li class="flex gap-2 items-start"><i data-lucide="history" class="w-4 h-4 text-slate-400 mt-0.5"></i> <span>En los últimos 5 años, las lluvias intensas en ${currentMun.name} comienzan la tercera semana de junio.</span></li>
+                <li class="flex gap-2 items-start"><i data-lucide="thermometer-sun" class="w-4 h-4 text-rose-400 mt-0.5"></i> <span>Alto riesgo histórico de <b>sequía intraestival (Canícula)</b> entre Julio 20 y Agosto 15.</span></li>
+                <li class="flex gap-2 items-start"><i data-lucide="cloud-lightning" class="w-4 h-4 text-blue-400 mt-0.5"></i> <span>Riesgo de heladas tempranas a finales de Noviembre.</span></li>
+            `;
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // DIBUJADO DE GRÁFICAS CON TOOLTIPS
+        // ==========================================
+        function updateCharts(hourly) {
+            const labels = hourly.time.filter((_, i) => i % 3 === 0).map(t => {
+                const d = new Date(t); return `${d.getHours()}:00`;
+            });
+            const filterData = (arr) => arr.filter((_, i) => i % 3 === 0);
+
+            if(chartTemp) chartTemp.destroy(); if(chartHum) chartHum.destroy(); if(chartPrecip) chartPrecip.destroy();
+
+            const commonOptions = { 
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false }, 
+                plugins: { 
+                    legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 6 } },
+                    tooltip: sharedTooltipConfig // Tooltip inyectado aquí
+                },
+                scales: { x: { grid: { display: false } }, y: { border: { display: false }, grid: { color: '#f1f5f9' } } }
+            };
+
+            chartTemp = new Chart(document.getElementById('chart-temp').getContext('2d'), {
+                type: 'line', data: { labels, datasets: [{ label: 'Ambiente', data: filterData(hourly.temperature_2m), borderColor: '#0ea5e9', tension: 0.4 }, { label: 'Suelo', data: filterData(hourly.soil_temperature_0cm), borderColor: '#f59e0b', tension: 0.4 }] }, options: commonOptions
+            });
+
+            chartHum = new Chart(document.getElementById('chart-hum').getContext('2d'), {
+                type: 'line', data: { labels, datasets: [{ label: 'Suelo (%)', data: filterData(hourly.soil_moisture_0_to_1cm).map(v=>v*100), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }] }, options: commonOptions
+            });
+
+            chartPrecip = new Chart(document.getElementById('chart-precip').getContext('2d'), {
+                type: 'bar', data: { labels, datasets: [{ label: 'Lluvia', data: filterData(hourly.precipitation), backgroundColor: '#6366f1', borderRadius: 4 }] }, options: commonOptions
+            });
+
+            // DASHBOARD GENERAL CHART
+            document.getElementById('chart-general-mun-label').textContent = currentMun.name;
+            const labels24h = hourly.time.slice(24, 48).filter((_, i) => i % 2 === 0).map(t => { const d = new Date(t); return `${d.getHours()}:00`; });
+            const temp24h = hourly.temperature_2m.slice(24, 48).filter((_, i) => i % 2 === 0);
+            const precip24h = hourly.precipitation.slice(24, 48).filter((_, i) => i % 2 === 0);
+
+            if(chartDashboardGeneral) chartDashboardGeneral.destroy();
+            chartDashboardGeneral = new Chart(document.getElementById('chart-dashboard-general').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: labels24h,
+                    datasets: [
+                        { label: 'Temperatura', data: temp24h, borderColor: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)', fill: true, tension: 0.4, yAxisID: 'y' },
+                        { type: 'bar', label: 'Lluvia', data: precip24h, backgroundColor: '#3b82f6', borderRadius: 2, yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false }, 
+                    plugins: { 
+                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 6 } },
+                        tooltip: sharedTooltipConfig 
+                    },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { type: 'linear', display: true, position: 'left', grid: { color: '#f1f5f9' }, border: {display: false}, suggestedMin: 10, suggestedMax: 40 },
+                        y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, border: {display: false}, suggestedMin: 0, suggestedMax: 20 }
+                    }
+                }
+            });
+        }
+
+        function renderEconomyCharts() {
+            const sparklineOptions = {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { enabled: false } }, 
+                scales: { x: { display: false }, y: { display: false, min: 4000, max: 6000 } },
+                elements: { point: { radius: 0 }, line: { tension: 0.4, borderWidth: 2 } }
+            };
+
+            if(chartEconMaizMini) chartEconMaizMini.destroy();
+            chartEconMaizMini = new Chart(document.getElementById('mini-chart-maiz').getContext('2d'), {
+                type: 'line', data: { labels: [1,2,3,4,5,6,7], datasets: [{ data: [5100,5200,5150,5300,5350,5400,5450], borderColor: '#10b981' }] }, options: sparklineOptions
+            });
+
+            const sparklineFrijolOpts = JSON.parse(JSON.stringify(sparklineOptions));
+            sparklineFrijolOpts.scales.y = { display: false, min: 16000, max: 19000 };
+
+            if(chartEconFrijolMini) chartEconFrijolMini.destroy();
+            chartEconFrijolMini = new Chart(document.getElementById('mini-chart-frijol').getContext('2d'), {
+                type: 'line', data: { labels: [1,2,3,4,5,6,7], datasets: [{ data: [18500,18600,18300,18400,18100,17900,17800], borderColor: '#e11d48' }] }, options: sparklineFrijolOpts
+            });
+
+            if(chartEconMain) chartEconMain.destroy();
+            chartEconMain = new Chart(document.getElementById('chart-economia-main').getContext('2d'), {
+                type: 'line', data: {
+                    labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'],
+                    datasets: [{ label: 'Precio Promedio', data: [4900, 5050, 5100, 5300, 5400, 5450], borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.1)', fill: true, tension: 0.4 }]
+                }, 
+                options: { 
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { 
+                        legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 6 } },
+                        tooltip: sharedTooltipConfig 
+                    },
+                    scales: { x: { grid: { display: false } }, y: { border: { display: false }, grid: { color: '#f1f5f9' } } }
+                }
+            });
+        }
+
+        let map = null, markers = [];
+        function initMap() {
+            if (map) { setTimeout(() => map.invalidateSize(), 100); return; }
+            setTimeout(() => {
+                map = L.map('map').setView([16.5, -92.5], 7);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+                if(globalMapData.length > 0) renderMapMarkers('optimo');
+            }, 200);
+        }
+
+        function setMapLayer(layer, btnElement) {
+            document.querySelectorAll('.map-layer-btn').forEach(b => {
+                b.className = 'map-layer-btn px-3 py-1.5 rounded text-xs';
+                if(b.textContent.includes('Riesgo')) b.classList.add('font-bold', 'text-rose-700', 'bg-rose-50', 'border-rose-200');
+            });
+            if(btnElement) {
+                if(layer === 'riesgo') btnElement.className = 'map-layer-btn active px-3 py-1.5 rounded text-xs text-white bg-rose-600 border-rose-700 shadow-md';
+                else btnElement.className = 'map-layer-btn active px-3 py-1.5 rounded text-xs';
+            }
+            renderMapMarkers(layer);
+        }
+
+        function renderMapMarkers(layer) {
+            if(!map) return;
+            markers.forEach(m => map.removeLayer(m)); markers = [];
+            
+            globalMapData.forEach(d => {
+                if (d.temp === undefined || d.precip === undefined) return;
+
+                let isOptimo = false;
+                if (currentCrop === 'maiz') isOptimo = (d.temp >= 15 && d.temp <= 30);
+                else isOptimo = (d.temp >= 18 && d.temp <= 27);
+
+                let color = '#94a3b8'; let statusBadge = '';
+
+                if (layer === 'temp') color = d.temp > 30 ? '#ef4444' : (d.temp < 15 ? '#3b82f6' : '#22c55e');
+                else if (layer === 'precip') color = d.precip > 10 ? '#3b82f6' : (d.precip > 0 ? '#93c5fd' : '#e2e8f0');
+                else if (layer === 'optimo') {
+                    color = isOptimo ? '#10b981' : '#f59e0b';
+                    statusBadge = `<div style="font-size: 12px; padding: 6px; border-radius: 4px; background: ${isOptimo ? '#ecfdf5' : '#fffbeb'}; color: ${isOptimo ? '#059669' : '#d97706'}; border: 1px solid ${isOptimo ? '#a7f3d0' : '#fde68a'}; text-align: center; font-weight: 600;">${isOptimo ? '✅ Apto para ' + (currentCrop==='maiz'?'Maíz':'Frijol') : '⚠️ Precaución térmica'}</div>`;
+                } else if (layer === 'riesgo') {
+                    let riesgoMsg = '';
+                    if (d.precip >= 15) { color = '#3b82f6'; riesgoMsg = '⚠️ Riesgo Alto: Inundación'; } 
+                    else if (d.temp >= 30 && d.precip < 2) { color = '#ef4444'; riesgoMsg = '⚠️ Riesgo Alto: Sequía'; } 
+                    else if (d.temp >= 28 || d.precip >= 5) { color = '#f59e0b'; riesgoMsg = '🟡 Riesgo Moderado: Monitorear'; } 
+                    else { color = '#10b981'; riesgoMsg = '✅ Riesgo Bajo: Estable'; }
+
+                    const bgR = riesgoMsg.includes('Bajo') ? '#ecfdf5' : (riesgoMsg.includes('Moderado') ? '#fffbeb' : '#fff1f2');
+                    const txR = riesgoMsg.includes('Bajo') ? '#059669' : (riesgoMsg.includes('Moderado') ? '#d97706' : '#e11d48');
+                    statusBadge = `<div style="font-size: 11px; padding: 6px; border-radius: 4px; background: ${bgR}; color: ${txR}; text-align: center; font-weight: bold; margin-bottom: 8px;">${riesgoMsg}</div>`;
+                }
+
+                const marker = L.circleMarker([d.mun.lat, d.mun.lng], { radius: 6, fillColor: color, color: '#fff', weight: 1.5, fillOpacity: 0.9 }).addTo(map);
+                const munIndex = municipios.findIndex(m => m.name === d.mun.name);
+
+                const popupContent = `
+                    <div style="font-family: 'Inter', sans-serif; min-width: 180px;">
+                        <strong style="display: block; font-size: 14px; margin-bottom: 8px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">📍 ${d.mun.name}</strong>
+                        ${statusBadge}
+                        <div style="font-size: 13px; color: #475569; margin-bottom: 4px;">🌡️ Temperatura: <b style="color: #0f172a;">${d.temp}°C</b></div>
+                        <div style="font-size: 13px; color: #475569; margin-bottom: 10px;">🌧️ Lluvia: <b style="color: #0f172a;">${d.precip} mm</b></div>
+                        <button onclick="seleccionarDesdeMapa(${munIndex})" style="width: 100%; padding: 8px 0; font-size: 12px; font-weight: 600; background: #4f46e5; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            📊 Ver en Dashboard
+                        </button>
+                    </div>`;
+
+                marker.bindPopup(popupContent);
+                marker.bindTooltip(`<b>${d.mun.name}</b>`, { direction: 'top' });
+                markers.push(marker);
+            });
+        }
+
+        function seleccionarDesdeMapa(index) {
+            map.closePopup();
+            document.getElementById('municipality-select').value = index;
+            changeMunicipality(index);
+            document.querySelector('.tab-btn[data-tab="dashboard"]').click();
+        }
+
+        function changeMunicipality(index) { currentMun = municipios[index]; fetchMunicipalityData(); }
+
+        function selectCrop(crop) {
+            currentCrop = crop;
+            document.getElementById('btn-maiz').className = crop === 'maiz' ? 'px-3 py-1 text-sm font-medium rounded shadow-sm bg-white text-slate-900' : 'px-3 py-1 text-sm font-medium rounded text-slate-500 hover:text-slate-700';
+            document.getElementById('btn-frijol').className = crop === 'frijol' ? 'px-3 py-1 text-sm font-medium rounded shadow-sm bg-white text-slate-900' : 'px-3 py-1 text-sm font-medium rounded text-slate-500 hover:text-slate-700';
+            document.getElementById('soil-crop-label').textContent = crop === 'maiz' ? 'Maíz' : 'Frijol';
+            evaluateConditions();
+            renderPlanificador();
+            
+            const mapActiveBtn = document.querySelector('.map-layer-btn.active');
+            if(mapActiveBtn && (mapActiveBtn.textContent.includes('Aptitud') || mapActiveBtn.textContent.includes('Riesgo'))) {
+                setMapLayer(mapActiveBtn.textContent.includes('Aptitud') ? 'optimo' : 'riesgo', mapActiveBtn);
+            }
+        }
+
+        async function startApp() {
+            setInterval(() => {
+                const now = new Date();
+                document.getElementById('datetime-display').textContent = now.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' }) + ', ' + now.toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'});
+            }, 1000);
+
+            const select = document.getElementById('municipality-select');
+            municipios.forEach((mun, idx) => {
+                const option = document.createElement('option');
+                option.value = idx; option.textContent = mun.name;
+                if(idx === comitanIndex) option.selected = true;
+                select.appendChild(option);
+            });
+
+            // Forzamos a que el sistema procese primero los datos principales
+            await fetchMunicipalityData();
+            
+            document.getElementById('map-loading-indicator').innerHTML = '<i data-lucide="loader-2" class="w-3 h-3 text-slate-400 mr-1 animate-spin"></i> Cargando datos estatales...';
+            lucide.createIcons();
+            
+            // Y luego, silenciosamente, baja el mapa total sin asfixiar la conexión
+            await fetchAllMapData();
+            
+            renderEconomyCharts(); 
+        }
+
+        startApp();
+    </script>
+</body>
+</html>

@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Librería para generar el PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <script>
@@ -32,9 +34,12 @@
         .glowing-dot { animation: pulse-live 2s ease-in-out infinite; }
         @keyframes pulse-live { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
         @media (max-width: 768px) { #map { height: 400px; } }
+        .prose-ai p { margin-bottom: 0.75rem; }
+        .prose-ai ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.75rem; }
+        .prose-ai h3, .prose-ai h4 { font-weight: 700; color: #1e293b; margin-top: 1rem; margin-bottom: 0.5rem; }
     </style>
 </head>
-<body class="font-sans text-slate-800 antialiased flex h-[100dvh] overflow-hidden"></body>
+<body class="font-sans text-slate-800 antialiased flex h-[100dvh] overflow-hidden">
 
     <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/50 z-30 hidden md:hidden transition-opacity"></div>
 
@@ -103,7 +108,7 @@
                     
                     <div class="flex bg-slate-100 p-0.5 rounded-md border border-slate-200 shrink-0">
                         <button onclick="selectCrop('maiz')" id="btn-maiz" class="px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded shadow-sm bg-white text-slate-900 transition-all">Maíz</button>
-                        <button onclick="selectCrop('frijol')" id="btn-frijol" class="px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded text-slate-500 hover:text-slate-700 transition-all">Frijol</button>
+                        <button onclick="selectCrop('criollo')" id="btn-criollo" class="px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded text-slate-500 hover:text-slate-700 transition-all">Maíz Criollo</button>
                     </div>
                 </div>
             </div>
@@ -152,13 +157,13 @@
                     </div>
                     <div class="admin-card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
-                            <div class="text-sm font-medium text-slate-500">Frijol Negro (Ton)</div>
+                            <div class="text-sm font-medium text-slate-500">Maíz Criollo (Ton)</div>
                             <div class="flex items-baseline gap-2 mt-1">
-                                <span class="text-2xl font-bold text-slate-800">$17,800.00</span>
+                                <span class="text-2xl font-bold text-slate-800">$8,500.00</span>
                                 <span class="text-xs font-semibold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded flex items-center"><i data-lucide="trending-down" class="w-3 h-3 mr-1"></i> 0.8%</span>
                             </div>
                         </div>
-                        <div class="h-12 w-full sm:w-24 relative"><canvas id="mini-chart-frijol"></canvas></div>
+                        <div class="h-12 w-full sm:w-24 relative"><canvas id="mini-chart-criollo"></canvas></div>
                     </div>
                 </div>
 
@@ -181,11 +186,119 @@
                 </div>
             </section>
 
-            <section id="tab-suelo" class="tab-content hidden">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6" id="soil-grid"></div>
+            <!-- PESTAÑA: ESTADO DEL SUELO Y REGISTRO DE SIEMBRA CON IA -->
+            <section id="tab-suelo" class="tab-content hidden space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="soil-grid"></div>
+                
                 <div class="admin-card p-4 sm:p-6">
-                    <h3 class="text-sm font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2">Interpretación Algorítmica - <span id="soil-crop-label" class="text-brand-600">Maíz</span></h3>
+                    <h3 class="text-sm font-semibold text-slate-800 mb-4 border-b border-slate-100 pb-2 flex items-center justify-between">
+                        <span>Interpretación Algorítmica - <span id="soil-crop-label" class="text-brand-600">Maíz Blanco</span></span>
+                    </h3>
                     <div id="soil-interpretation" class="text-sm text-slate-600 space-y-3"></div>
+                </div>
+
+                <!-- REGISTRO MANUAL DE SIEMBRA Y ANÁLISIS GEMINI AI -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <!-- Formulario de Registro -->
+                    <div class="admin-card p-4 sm:p-6 lg:col-span-5 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
+                                <div class="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><i data-lucide="file-plus-2" class="w-5 h-5"></i></div>
+                                <div>
+                                    <h3 class="text-base font-bold text-slate-800">Registro de Siembra Manual</h3>
+                                    <p class="text-xs text-slate-500">Guarde las condiciones iniciales del parcela</p>
+                                </div>
+                            </div>
+
+                            <form id="siembra-form" onsubmit="guardarYAnalizarSiembra(event)" class="space-y-4 text-sm">
+                                <div>
+                                    <label class="block font-medium text-slate-700 mb-1">Fecha y Hora de Siembra</label>
+                                    <input type="datetime-local" id="siembra-datetime" required class="w-full bg-slate-50 border border-slate-300 rounded-md p-2 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                                </div>
+
+                                <div>
+                                    <label class="block font-medium text-slate-700 mb-1">Tipo / Variedad Cultivada</label>
+                                    <select id="siembra-variedad" class="w-full bg-slate-50 border border-slate-300 rounded-md p-2 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                                        <option value="Maíz Blanco Comercial (Híbrido)">Maíz Blanco Comercial (Híbrido)</option>
+                                        <option value="Maíz Criollo de Chiapas (Oloton / Tehua / Comiteco)">Maíz Criollo de Chiapas (Nativo / Razas Locales)</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block font-medium text-slate-700 mb-1">Condición Climatológica Observada</label>
+                                    <select id="siembra-clima" class="w-full bg-slate-50 border border-slate-300 rounded-md p-2 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                                        <option value="Soleado / Cálido">Soleado y Cálido</option>
+                                        <option value="Nublado / Templado">Nublado / Fresco</option>
+                                        <option value="Lluvia Ligera / Tierra Húmeda">Lluvia Ligera (Tierra Húmeda)</option>
+                                        <option value="Sequía / Suelo Seco">Calor Seco / Suelo con Escasa Humedad</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block font-medium text-slate-700 mb-1">Notas / Preparación del Suelo</label>
+                                    <textarea id="siembra-notas" rows="2" placeholder="Ej: Suelo rastreado, incorporación de compost, siembra a espeque..." class="w-full bg-slate-50 border border-slate-300 rounded-md p-2 text-slate-800 focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
+                                </div>
+
+                                <!-- SE ELIMINÓ EL INPUT DEL API KEY MANUALMENTE AQUÍ -->
+
+                                <button type="submit" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold py-2.5 px-4 rounded-md transition flex items-center justify-center gap-2 shadow-sm mt-4">
+                                    <i data-lucide="sparkles" class="w-4 h-4"></i> Guardar y Analizar con Gemini AI
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Resumen del último registro -->
+                        <div id="ultimo-registro-card" class="mt-6 pt-4 border-t border-slate-100 hidden">
+                            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">Último Registro Guardado</span>
+                            <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs space-y-1 text-slate-600">
+                                <div id="log-fecha"><b>Fecha:</b> -</div>
+                                <div id="log-variedad"><b>Variedad:</b> -</div>
+                                <div id="log-clima"><b>Clima:</b> -</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Panel de Recomendaciones e Inteligencia Artificial -->
+                    <div class="admin-card p-4 sm:p-6 lg:col-span-7 flex flex-col justify-between min-h-[420px]">
+                        <div>
+                            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                                <div class="flex items-center gap-2">
+                                    <div class="p-2 bg-brand-50 text-brand-600 rounded-lg"><i data-lucide="bot" class="w-5 h-5"></i></div>
+                                    <div>
+                                        <h3 class="text-base font-bold text-slate-800">Diagnóstico Predictivo Gemini IA</h3>
+                                        <p class="text-xs text-slate-500">Predicción agronómica basada en condiciones de Chiapas</p>
+                                    </div>
+                                </div>
+                                <span class="bg-brand-50 text-brand-700 text-xs font-medium px-2.5 py-1 rounded-full border border-brand-100 flex items-center gap-1">
+                                    <i data-lucide="cpu" class="w-3 h-3"></i> Gemini 3.6 Flash
+                                </span>
+                            </div>
+
+                            <div id="gemini-loading" class="hidden py-16 text-center space-y-3">
+                                <div class="inline-block animate-spin text-brand-600"><i data-lucide="loader-2" class="w-8 h-8"></i></div>
+                                <p class="text-sm text-slate-600 font-medium">Procesando datos agroclimáticos con Gemini AI...</p>
+                                <p class="text-xs text-slate-400">Analizando fenología, riesgos y sugerencias para el cultivo.</p>
+                            </div>
+
+                            <div id="gemini-response" class="prose-ai text-sm text-slate-700 space-y-2">
+                                <div class="p-8 text-center text-slate-400 bg-slate-50/50 border border-dashed border-slate-200 rounded-lg mt-4">
+                                    <i data-lucide="sparkles" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
+                                    <p class="font-medium text-slate-600">No hay un análisis generado aún.</p>
+                                    <p class="text-xs text-slate-400 mt-1">Completa los datos de tu siembra a la izquierda y presiona <b>Guardar y Analizar</b>.</p>
+                                </div>
+                            </div>
+                            
+                            <!-- BOTÓN DE DESCARGA PDF NUEVO -->
+                            <button id="btn-download-pdf" type="button" onclick="descargarPDF()" class="hidden mt-4 w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 px-4 rounded-md transition flex items-center justify-center gap-2 shadow-sm">
+                                <i data-lucide="download" class="w-4 h-4"></i> Descargar Diagnóstico en PDF
+                            </button>
+                        </div>
+
+                        <div class="mt-6 pt-3 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-between">
+                            <span>Evaluación contextualizada para el estado de Chiapas</span>
+                            <span id="gemini-timestamp">--</span>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -232,7 +345,7 @@
                             <h3 class="text-sm font-semibold text-slate-800">Tendencia (6 Meses) - MXN/Ton</h3>
                             <div class="flex bg-slate-100 p-0.5 rounded-md border border-slate-200 self-start">
                                 <button class="px-3 py-1 text-xs font-medium rounded shadow-sm bg-white text-slate-900">Maíz</button>
-                                <button class="px-3 py-1 text-xs font-medium rounded text-slate-500 hover:text-slate-700">Frijol</button>
+                                <button class="px-3 py-1 text-xs font-medium rounded text-slate-500 hover:text-slate-700">Maíz Criollo</button>
                             </div>
                         </div>
                         <div class="relative flex-grow h-64 sm:h-80 w-full"><canvas id="chart-economia-main"></canvas></div>
@@ -421,7 +534,7 @@
         let realTimeData = {}; 
         let globalMapData = []; 
         let chartTemp, chartHum, chartPrecip, chartDashboardGeneral; 
-        let chartEconMain, chartEconMaizMini, chartEconFrijolMini; 
+        let chartEconMain, chartEconMaizMini, chartEconCriolloMini; 
 
         lucide.createIcons();
 
@@ -435,7 +548,7 @@
         };
 
         // ==========================================
-        // LÓGICA DE PESTAÑAS (VERSIÓN BLINDADA)
+        // LÓGICA DE PESTAÑAS
         // ==========================================
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', function(e) {
@@ -444,32 +557,26 @@
                 const targetTab = this.dataset.tab;
                 if (!targetTab) return; 
                 
-                // 1. Ocultar todas las secciones de contenido
                 document.querySelectorAll('.tab-content').forEach(el => {
                     el.classList.add('hidden');
                 });
                 
-                // 2. Mostrar únicamente la pestaña seleccionada
                 const tabToShow = document.getElementById('tab-' + targetTab);
                 if (tabToShow) {
                     tabToShow.classList.remove('hidden');
                 }
                 
-                // 3. Actualizar el título de la cabecera
                 const titleElement = document.getElementById('current-view-title');
                 if (titleElement && viewTitles[targetTab]) {
                     titleElement.textContent = viewTitles[targetTab];
                 }
                 
-                // 4. Resetear los colores de todos los botones
                 document.querySelectorAll('.tab-btn').forEach(b => { 
                     b.className = 'tab-btn w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all';
                 });
                 
-                // 5. Encender el color del botón presionado
                 this.className = 'tab-btn w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium bg-brand-50 text-brand-700 transition-all';
                 
-                // 6. Cierre automático del menú lateral en celular
                 if (window.innerWidth < 768) {
                     const sidebar = document.getElementById('sidebar');
                     if (sidebar && !sidebar.classList.contains('-translate-x-full')) {
@@ -477,7 +584,6 @@
                     }
                 }
 
-                // 7. Renderizado seguro de componentes pesados (Mapas y Gráficas)
                 setTimeout(() => {
                     if (targetTab === 'mapa') initMap();
                     if (targetTab === 'economia' || targetTab === 'dashboard') renderEconomyCharts();
@@ -487,10 +593,146 @@
         });
 
         // ==========================================
-        // SISTEMA DE RESPALDO (MOCK DATA) PARA EVITAR CAÍDAS
+        // REGISTRO DE SIEMBRA E INTEGRACIÓN CON GEMINI AI
+        // ==========================================
+        function initSiembraModule() {
+            // Establecer fecha y hora actual por defecto en el picker
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            const dtInput = document.getElementById('siembra-datetime');
+            if (dtInput) dtInput.value = now.toISOString().slice(0, 16);
+
+            // Cargar último registro guardado
+            cargarUltimoRegistro();
+        }
+
+        function cargarUltimoRegistro() {
+            const raw = localStorage.getItem('agrotech_siembra_log');
+            if (!raw) return;
+            try {
+                const log = JSON.parse(raw);
+                document.getElementById('ultimo-registro-card').classList.remove('hidden');
+                document.getElementById('log-fecha').innerHTML = `<b>Fecha:</b> ${new Date(log.datetime).toLocaleString('es-MX')}`;
+                document.getElementById('log-variedad').innerHTML = `<b>Variedad:</b> ${log.variedad}`;
+                document.getElementById('log-clima').innerHTML = `<b>Clima Observado:</b> ${log.clima}`;
+            } catch (e) { console.error("Error al cargar siembra previa", e); }
+        }
+
+        async function guardarYAnalizarSiembra(e) {
+            e.preventDefault();
+
+            const datetime = document.getElementById('siembra-datetime').value;
+            const variedad = document.getElementById('siembra-variedad').value;
+            const clima = document.getElementById('siembra-clima').value;
+            const notas = document.getElementById('siembra-notas').value;
+            
+            // ========================================================
+            // AQUI CONFIGURAS TU API KEY DIRECTAMENTE EN EL CÓDIGO
+            // ========================================================
+            const apiKey = "AQ.Ab8RN6IML6ESnN5csRx-yju0pUFMWGuDijg8G7q9I_ZFJLAe0w";
+
+            if (apiKey === "TU_API_KEY_AQUI" || !apiKey) {
+                alert("Por favor, ingresa tu clave de Gemini directamente en el código fuente (busca la variable apiKey).");
+                return;
+            }
+
+            const registro = { datetime, variedad, clima, notas, municipio: currentMun.name };
+            localStorage.setItem('agrotech_siembra_log', JSON.stringify(registro));
+            cargarUltimoRegistro();
+
+            // Mostrar estado de carga y ocultar el botón de PDF si existe
+            const loadingEl = document.getElementById('gemini-loading');
+            const responseEl = document.getElementById('gemini-response');
+            const btnPdf = document.getElementById('btn-download-pdf');
+            
+            loadingEl.classList.remove('hidden');
+            responseEl.classList.add('hidden');
+            if(btnPdf) btnPdf.classList.add('hidden');
+
+            try {
+                const prompt = `Actúa como un experto agrónomo e investigador climático especializado en la agricultura del estado de Chiapas, México.
+                
+                Un agricultor en el municipio de ${currentMun.name}, Chiapas ha registrado una siembra con los siguientes datos:
+                - Fecha y hora de siembra: ${datetime}
+                - Cultivo/Variedad: ${variedad}
+                - Condición climatológica observada al sembrar: ${clima}
+                - Notas adicionales: ${notas || 'Ninguna'}
+                - Condiciones climáticas del sensor actual en ${currentMun.name}: Temperatura actual ${realTimeData.temperatura?.value || 25}°C, Humedad del suelo ${realTimeData.humedad_suelo?.value || 30}%, Lluvia de hoy ${realTimeData.precipitacion?.value || 0}mm.
+
+                Por favor, genera un informe estructurado y accesible que incluya:
+                1. **Diagnóstico y Predicción de Germinación:** ¿Cómo influirán la fecha, variedad y clima inicial en el establecimiento y germinación del cultivo?
+                2. **Predicción para los Próximos 15 a 30 Días:** Qué etapas fenológicas se esperan y qué riesgos agroclimáticos típicos en Chiapas (canícula, exceso de lluvias, plagas locales) debe cuidar.
+                3. **Recomendaciones Clave de Manejo:** 3 o 4 acciones operativas inmediatas y a corto plazo (riego, nutrición, prevención de hongos/plagas) adaptadas al tipo de maíz (${variedad}).
+
+                Escribe en un tono profesional, claro, empático y estructurado con títulos claros e incisos. Utiliza formato HTML simple (<h3>, <p>, <ul>, <li>, <b>) para que se renderice bien directamente en la interfaz.`;
+
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`;
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+
+                const data = await res.json();
+
+                if (data.error) {
+                    throw new Error(data.error.message || "Error al conectar con la API de Gemini");
+                }
+
+                const responseText = data.candidates[0]?.content?.parts[0]?.text || "No se pudo generar la respuesta.";
+                
+                // Formatear Markdown simple a HTML si la IA envía markdown puro
+                let formattedHtml = responseText
+                    .replace(/### (.*?)\n/g, '<h3 class="text-base font-bold text-slate-800 mt-3 mb-1">$1</h3>')
+                    .replace(/## (.*?)\n/g, '<h3 class="text-base font-bold text-slate-800 mt-3 mb-1">$1</h3>')
+                    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+                    .replace(/^\* (.*?)$/gm, '<li>$1</li>')
+                    .replace(/\n\n/g, '</p><p>')
+                    .replace(/(<li>.*<\/li>)/s, '<ul class="list-disc pl-5 space-y-1 my-2">$1<\/ul>');
+
+                responseEl.innerHTML = `<div class="bg-brand-50/40 p-4 rounded-lg border border-brand-100">${formattedHtml}</div>`;
+                document.getElementById('gemini-timestamp').textContent = `Actualizado: ${new Date().toLocaleTimeString('es-MX')}`;
+
+                // Mostrar el botón de PDF si la respuesta fue exitosa
+                if(btnPdf) btnPdf.classList.remove('hidden');
+
+            } catch (err) {
+                console.error("Error Gemini API:", err);
+                responseEl.innerHTML = `
+                    <div class="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs space-y-1">
+                        <b class="font-bold block text-sm">Error de conexión con Gemini IA:</b>
+                        <p>${err.message}</p>
+                        <p class="mt-2 text-slate-500">Verifica que tu clave API sea válida en el código.</p>
+                    </div>`;
+            } finally {
+                loadingEl.classList.add('hidden');
+                responseEl.classList.remove('hidden');
+            }
+        }
+
+        // ==========================================
+        // FUNCION PARA DESCARGAR EN PDF
+        // ==========================================
+        function descargarPDF() {
+            const element = document.getElementById('gemini-response');
+            
+            // Opciones de configuración de html2pdf
+            const opt = {
+                margin:       0.5,
+                filename:     `Diagnostico_Siembra_${currentMun.name}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+            
+            // Generar y guardar PDF
+            html2pdf().set(opt).from(element).save();
+        }
+
+        // ==========================================
+        // SISTEMA DE RESPALDO (MOCK DATA)
         // ==========================================
         function getFallbackData() {
-            // Si la API falla, generamos datos falsos realistas para que el dashboard nunca se rompa en la presentación
             const hIndex = 24;
             const fakeHourly = {
                 time: Array.from({length: 48}, (_, i) => `2026-06-12T${String(i%24).padStart(2,'0')}:00`),
@@ -530,7 +772,6 @@
                 const res = await fetch(url);
                 const data = await res.json();
 
-                // Si la API nos bloqueó por exceso de peticiones, inyectar el Backup
                 if(data.error || !data.current) {
                     console.warn("⚠️ Límite de API alcanzado. Usando datos de respaldo.");
                     realTimeData = getFallbackData();
@@ -553,7 +794,6 @@
                 renderAll(data.hourly);
             } catch (error) { 
                 console.error("Error de conexión:", error);
-                // Si no hay internet, usar Backup
                 realTimeData = getFallbackData();
                 renderAll(realTimeData.hourlyRaw);
             }
@@ -566,13 +806,12 @@
             renderForecast();
             renderPlanificador();
             
-            // Si el estado de conexión dice "Cargando", ponerlo en Línea
             const badge = document.getElementById('badge-online');
             if(badge) { badge.classList.remove('bg-rose-50', 'text-rose-700'); badge.classList.add('bg-brand-50', 'text-brand-700'); badge.textContent = 'En línea'; }
         }
 
         // ==========================================
-        // DESCARGA ASÍNCRONA DEL MAPA (SIN BLOQUEAR)
+        // DESCARGA ASÍNCRONA DEL MAPA
         // ==========================================
         async function fetchAllMapData() {
             try {
@@ -597,7 +836,6 @@
                         }
                     });
                     
-                    // Pequeña pausa para no enojar a la API
                     await new Promise(r => setTimeout(r, 300)); 
                 }
                 
@@ -613,7 +851,6 @@
                 }
             } catch (error) { 
                 console.warn("Límite de API en Mapa. Usando simulación visual.");
-                // Backup map data so it doesn't break
                 globalMapData = municipios.map(m => ({
                     mun: m, temp: (20 + Math.random() * 15).toFixed(1), precip: (Math.random() > 0.7 ? Math.random() * 10 : 0).toFixed(1)
                 }));
@@ -625,7 +862,7 @@
         }
 
         // ==========================================
-        // RENDERIZADO VISUAL DE COMPONENTES
+        // RENDERIZADO VISUAL
         // ==========================================
         function renderDashboard() {
             const gridW = document.getElementById('weather-grid');
@@ -676,16 +913,16 @@
             let isOptimo = true; let msg = []; let recs = [];
             
             if (currentCrop === 'maiz') {
-                if(temp >= 15 && temp <= 30) msg.push('<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 shrink-0"></i> Temperatura ambiental óptima para maíz.');
+                if(temp >= 15 && temp <= 30) msg.push('<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 shrink-0"></i> Temperatura ambiental óptima para maíz blanco.');
                 else { msg.push('<i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500 shrink-0"></i> Temperatura fuera del rango ideal (15-30°C).'); isOptimo = false; }
                 if(humSuelo > 20) msg.push('<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 shrink-0"></i> Humedad de suelo suficiente.');
                 else { msg.push('<i data-lucide="x-circle" class="w-4 h-4 text-red-500 shrink-0"></i> Suelo seco. Requiere riego.'); isOptimo = false; }
             } else {
-                if(temp >= 18 && temp <= 27) msg.push('<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 shrink-0"></i> Temperatura ideal para frijol.');
-                else { msg.push('<i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500 shrink-0"></i> Estrés térmico para frijol.'); isOptimo = false; }
-                if(humSuelo > 15 && humSuelo < 40) msg.push('<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 shrink-0"></i> Humedad adecuada.');
-                else if(humSuelo >= 40) { msg.push('<i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500 shrink-0"></i> Exceso de humedad, riesgo de asfixia.'); isOptimo = false; }
-                else { msg.push('<i data-lucide="x-circle" class="w-4 h-4 text-red-500 shrink-0"></i> Déficit hídrico.'); isOptimo = false; }
+                if(temp >= 16 && temp <= 32) msg.push('<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 shrink-0"></i> Temperatura ideal para el maíz criollo (alta tolerancia térmica).');
+                else { msg.push('<i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500 shrink-0"></i> Estrés térmico extremo incluso para la variedad criolla.'); isOptimo = false; }
+                if(humSuelo > 15 && humSuelo < 45) msg.push('<i data-lucide="check-circle" class="w-4 h-4 text-emerald-500 shrink-0"></i> Humedad adecuada por su alta rusticidad en suelos de temporal.');
+                else if(humSuelo >= 45) { msg.push('<i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500 shrink-0"></i> Exceso de humedad, riesgo de pudrición radicular.'); isOptimo = false; }
+                else { msg.push('<i data-lucide="x-circle" class="w-4 h-4 text-red-500 shrink-0"></i> Déficit hídrico severo.'); isOptimo = false; }
             }
 
             if (precip > 15 || precipProbMañana >= 70) {
@@ -704,14 +941,16 @@
                 recs.push({ icon: 'leaf', color: 'emerald', title: 'Desarrollo Óptimo', desc: 'Condiciones actuales limitan plagas. Buen día para labores de campo.' });
             }
 
+            const labelVariedad = currentCrop === 'maiz' ? 'Maíz Blanco' : 'Maíz Criollo';
+            
             if(isOptimo) {
                 banner.className = 'mb-6 admin-card p-4 flex flex-col sm:flex-row sm:items-center justify-between border-l-4 border-l-emerald-500 bg-emerald-50/30 gap-3 text-center sm:text-left';
                 dot.className = 'w-2 h-2 rounded-full glowing-dot bg-emerald-500 shrink-0';
-                btnEstado.textContent = 'Condiciones óptimas en ' + currentMun.name + ' para cultivo de ' + currentCrop;
+                btnEstado.textContent = 'Condiciones óptimas en ' + currentMun.name + ' para cultivo de ' + labelVariedad;
             } else {
                 banner.className = 'mb-6 admin-card p-4 flex flex-col sm:flex-row sm:items-center justify-between border-l-4 border-l-amber-500 bg-amber-50/30 gap-3 text-center sm:text-left';
                 dot.className = 'w-2 h-2 rounded-full glowing-dot bg-amber-500 shrink-0';
-                btnEstado.textContent = 'Se requiere atención en ' + currentMun.name + ' para cultivo de ' + currentCrop;
+                btnEstado.textContent = 'Se requiere atención en ' + currentMun.name + ' para cultivo de ' + labelVariedad;
             }
 
             interpBox.innerHTML = msg.map(m => `<div class="flex items-start sm:items-center gap-2">${m}</div>`).join('');
@@ -851,11 +1090,11 @@
                 <div class="flex flex-col md:flex-row gap-6 mb-8">
                     <div class="flex-1 p-4 rounded-lg border border-slate-200 text-center">
                         <div class="text-xs text-slate-500 font-semibold uppercase mb-1">Inicio de Temporada</div>
-                        <div class="text-xl font-bold text-slate-800">${isMaiz ? '15 de Mayo' : '15 de Julio'}</div>
+                        <div class="text-xl font-bold text-slate-800">${isMaiz ? '15 de Mayo' : '10 de Junio'}</div>
                     </div>
                     <div class="flex-1 p-4 rounded-lg border border-slate-200 text-center">
                         <div class="text-xs text-slate-500 font-semibold uppercase mb-1">Fin Recomendado</div>
-                        <div class="text-xl font-bold text-slate-800">${isMaiz ? '30 de Junio' : '30 de Agosto'}</div>
+                        <div class="text-xl font-bold text-slate-800">${isMaiz ? '30 de Junio' : '30 de Julio'}</div>
                     </div>
                 </div>
                 
@@ -873,7 +1112,7 @@
 
                 <div class="mt-8 p-4 bg-slate-50 rounded-lg border border-slate-200">
                     <h4 class="text-sm font-semibold text-slate-800 mb-2">💡 Sugerencia Agronómica</h4>
-                    <p class="text-sm text-slate-600">${isMaiz ? 'Aprovecha la humedad residual actual en '+currentMun.name+'. Es el momento preciso para sembrar semillas híbridas de maíz que requieren buen establecimiento.' : 'El suelo en '+currentMun.name+' está acumulando la humedad necesaria. Prepara la tierra para arrancar el próximo mes.'}</p>
+                    <p class="text-sm text-slate-600">${isMaiz ? 'Aprovecha la humedad residual actual en '+currentMun.name+'. Es el momento preciso para sembrar semillas híbridas de maíz blanco que requieren buen establecimiento.' : 'Las variedades criollas de la región están altamente adaptadas al régimen pluviométrico de '+currentMun.name+'. Prepara las semillas y los terrenos para sembrar con las primeras lluvias fuertes de temporal.'}</p>
                 </div>`;
 
             hist.innerHTML = `
@@ -900,14 +1139,14 @@
                 });
             }
 
-            const sparklineFrijolOpts = JSON.parse(JSON.stringify(sparklineOptions));
-            sparklineFrijolOpts.scales.y = { display: false, min: 16000, max: 19000 };
+            const sparklineCriolloOpts = JSON.parse(JSON.stringify(sparklineOptions));
+            sparklineCriolloOpts.scales.y = { display: false, min: 7000, max: 9500 };
 
-            const canvasFrijol = document.getElementById('mini-chart-frijol');
-            if(canvasFrijol) {
-                if(chartEconFrijolMini) chartEconFrijolMini.destroy();
-                chartEconFrijolMini = new Chart(canvasFrijol.getContext('2d'), {
-                    type: 'line', data: { labels: [1,2,3,4,5,6,7], datasets: [{ data: [18500,18600,18300,18400,18100,17900,17800], borderColor: '#e11d48' }] }, options: sparklineFrijolOpts
+            const canvasCriollo = document.getElementById('mini-chart-criollo');
+            if(canvasCriollo) {
+                if(chartEconCriolloMini) chartEconCriolloMini.destroy();
+                chartEconCriolloMini = new Chart(canvasCriollo.getContext('2d'), {
+                    type: 'line', data: { labels: [1,2,3,4,5,6,7], datasets: [{ data: [8700,8750,8600,8550,8400,8450,8500], borderColor: '#e11d48' }] }, options: sparklineCriolloOpts
                 });
             }
 
@@ -965,7 +1204,7 @@
 
                 let isOptimo = false;
                 if (currentCrop === 'maiz') isOptimo = (d.temp >= 15 && d.temp <= 30);
-                else isOptimo = (d.temp >= 18 && d.temp <= 27);
+                else isOptimo = (d.temp >= 16 && d.temp <= 32);
 
                 let color = '#94a3b8'; let statusBadge = '';
 
@@ -973,7 +1212,7 @@
                 else if (layer === 'precip') color = d.precip > 10 ? '#3b82f6' : (d.precip > 0 ? '#93c5fd' : '#e2e8f0');
                 else if (layer === 'optimo') {
                     color = isOptimo ? '#10b981' : '#f59e0b';
-                    statusBadge = `<div style="font-size: 12px; padding: 6px; border-radius: 4px; background: ${isOptimo ? '#ecfdf5' : '#fffbeb'}; color: ${isOptimo ? '#059669' : '#d97706'}; border: 1px solid ${isOptimo ? '#a7f3d0' : '#fde68a'}; text-align: center; font-weight: 600;">${isOptimo ? '✅ Apto para ' + (currentCrop==='maiz'?'Maíz':'Frijol') : '⚠️ Precaución térmica'}</div>`;
+                    statusBadge = `<div style="font-size: 12px; padding: 6px; border-radius: 4px; background: ${isOptimo ? '#ecfdf5' : '#fffbeb'}; color: ${isOptimo ? '#059669' : '#d97706'}; border: 1px solid ${isOptimo ? '#a7f3d0' : '#fde68a'}; text-align: center; font-weight: 600;">${isOptimo ? '✅ Apto para ' + (currentCrop==='maiz'?'Maíz Blanco':'Maíz Criollo') : '⚠️ Precaución térmica'}</div>`;
                 } else if (layer === 'riesgo') {
                     let riesgoMsg = '';
                     if (d.precip >= 15) { color = '#3b82f6'; riesgoMsg = '⚠️ Riesgo Alto: Inundación'; } 
@@ -1015,7 +1254,6 @@
 
         function changeMunicipality(index) { 
             currentMun = municipios[index]; 
-            // Inmediatamente mostrar estado "Cargando"
             const badge = document.getElementById('badge-online');
             if(badge) { badge.classList.replace('bg-brand-50', 'bg-rose-50'); badge.classList.replace('text-brand-700', 'text-rose-700'); badge.textContent = 'Actualizando...'; }
             
@@ -1028,9 +1266,9 @@
         function selectCrop(crop) {
             currentCrop = crop;
             document.getElementById('btn-maiz').className = crop === 'maiz' ? 'px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded shadow-sm bg-white text-slate-900 transition-all' : 'px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded text-slate-500 hover:text-slate-700 transition-all';
-            document.getElementById('btn-frijol').className = crop === 'frijol' ? 'px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded shadow-sm bg-white text-slate-900 transition-all' : 'px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded text-slate-500 hover:text-slate-700 transition-all';
+            document.getElementById('btn-criollo').className = crop === 'criollo' ? 'px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded shadow-sm bg-white text-slate-900 transition-all' : 'px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded text-slate-500 hover:text-slate-700 transition-all';
             const scl = document.getElementById('soil-crop-label');
-            if(scl) scl.textContent = crop === 'maiz' ? 'Maíz' : 'Frijol';
+            if(scl) scl.textContent = crop === 'maiz' ? 'Maíz Blanco' : 'Maíz Criollo';
             
             if(Object.keys(realTimeData).length !== 0) {
                 evaluateConditions();
@@ -1044,10 +1282,9 @@
         }
 
         // ==========================================
-        // ARRANQUE PRINCIPAL (NO BLOQUEANTE)
+        // ARRANQUE PRINCIPAL
         // ==========================================
         function startApp() {
-            // Reloj cabecera
             setInterval(() => {
                 const now = new Date();
                 const dtDisplay = document.getElementById('datetime-display');
@@ -1064,14 +1301,10 @@
                 });
             }
 
-            // 1. Mostrar gráficas económicas instantáneamente
             renderEconomyCharts(); 
-
-            // 2. Traer el municipio seleccionado
             fetchMunicipalityData();
-
-            // 3. Dejar el mapa descargando de fondo
             fetchAllMapData();
+            initSiembraModule();
         }
 
         startApp();
